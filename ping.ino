@@ -69,8 +69,8 @@ byte sourceMAC[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };      // Replace with 
 
 // IP addresses are dependent on your local network.
 // IPAddress destinationIP(8, 8, 8, 8);  // Replace with the IP address of your destination node
-IPAddress destinationIP(192, 168, 8, 106);  // Replace with the IP address of your destination node
-IPAddress sourceIP(192, 168, 8, 129);       // Replace with your Arduino's IP address
+IPAddress destinationIP(10, 28, 28, 9);  // Replace with the IP address of your destination node
+IPAddress sourceIP(10, 28, 28, 20);       // Replace with your Arduino's IP address
 
 unsigned int sequenceNumber = 0;
 unsigned int ethernetInitVal = 0;
