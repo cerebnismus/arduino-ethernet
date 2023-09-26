@@ -1,55 +1,36 @@
 /*
-  NAME: Bowl of Petunias - Ethernet (bop-eth)
-  AUTH: Oguzhan Ince (cerebnismus) 
-  MAIL: <oguzhan.ince@protonmail.com>
-  DATE: July 07, 2023.
-  DESC: Send a icmp requests to a remote network nodes. 
+  NAME: arduino-ethernet
+  AUTH: <oguzhan.ince@protonmail.com>
+  DATE: 04/09/2023
+  DESC: arduino ile ağ yönetimi
   
   The project is based on the Arduino Ethernet library and the W5100Interface. 
   Library is a mbed library that implements the EthernetInterface for the
   Wiznet W5100 based Ethernet shield. The Wiznet W5100 chip supports up to
   four simultaneous socket connections. And never supports more than 4 sockets.
 
-INSTALLATION: Arduino CLI Commands for this project (bop-eth):
-arduino-cli board list
-arduino-cli lib install "Ethernet@2.0.0"
-arduino-cli lib install "SoftwareSerial@1.0.0"
-
-arduino-cli compile  \
+Derleme Aşaması;
+  (base) macintosh ~ » arduino-cli compile  \
   --fqbn arduino:avr:uno  \
-  --port /dev/ttyUSB1  \
-  --libraries /home/pi/bowl-of-petunias/bop-eth/libs/  \
-  --build-cache-path /home/pi/bowl-of-petunias/bop-eth/build-cache/  \
+  --port /dev/cu.usbserial-1410  \
+  --libraries /Users/macbook/Documents/arduino-ethernet/libs/  \
+  --build-cache-path /Users/macbook/Documents/arduino-ethernet/build-cache/   \
   --export-binaries --warnings all  \
-  --output-dir /home/pi/bowl-of-petunias/bop-eth/bin/  \
+  --output-dir /Users/macbook/Documents/arduino-ethernet/bin/   \
   --upload  \
   --verify  \
   --verbose  \
   --clean \
-  /home/pi/bowl-of-petunias/bop-eth/bop-eth.ino
-
-arduino-cli compile  \
-  --fqbn arduino:avr:uno  \
-  --port /dev/cu.usbserial-14120  \
-  --libraries /Users/macbook/Documents/bowl-of-petunias/bop-eth/libs/  \
-  --build-cache-path /Users/macbook/Documents/bowl-of-petunias/bop-eth/build-cache/  \
-  --export-binaries --warnings all  \
-  --output-dir /Users/macbook/Documents/bowl-of-petunias/bop-eth/bin/  \
-  --upload  \
-  --verify  \
-  --verbose  \
-  --clean \
-  /Users/macbook/Documents/bowl-of-petunias/bop-eth/bop-eth.ino
+  /Users/macbook/Documents/arduino-ethernet/arduino-ethernet.ino
 
 */
-
-// socketClose function immediately close socket.  
-// the remote host is left unaware we closed.
 
 #include <SPI.h>
 #include <SoftwareSerial.h>
 #include <Ethernet.h>
 #include <EthernetUdp.h>
+// #include "/Users/macbook/Documents/arduino-ethernet/libs/Ethernet/src/Ethernet.h"
+// #include "/Users/macbook/Documents/arduino-ethernet/libs/Ethernet/src/EthernetUdp.h"
 
 uint16_t calculateChecksum(const byte* data, size_t length) {
   uint32_t sum = 0;
