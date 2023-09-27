@@ -26,16 +26,18 @@
 #include "utility/w5100.h"
 
 uint16_t EthernetRAW::server_port[MAX_SOCK_NUM];
+// uint16_t EthernetRAW::sockindex = MAX_SOCK_NUM;
 
 
 /* Start Ethernet IPRAW socket */
 void EthernetRAW::begin()
 {
-  SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
-  W5100.writeSnMR(0, 0x03); // Set socket 0 to IPRAW mode
-  W5100.writeSnPROTO(0, 0x01); // Set PROTO register to ICMP
-  W5100.execCmdSn(0, Sock_OPEN);
-  SPI.endTransaction();
+	sockindex = Ethernet.socketBegin(SnMR::MACRAW, 0);
+  //SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+  //W5100.writeSnMR(0, 0x04); // Set socket IPRAW mode IPRAW  = 0x03; MACRAW = 0x04
+  //W5100.writeSnPROTO(0, 0xFF); // Set PROTO register to ICMP 1 (0x01) or RAW 255 (0xFF)
+  //W5100.execCmdSn(0, Sock_OPEN);
+  //SPI.endTransaction();
 }
 
 
@@ -140,4 +142,13 @@ size_t EthernetRAW::write(const uint8_t *buffer, size_t size)
 	W5100.execCmdSn(0, Sock_SEND);
   SPI.endTransaction();
 
+}
+
+/* Release any resources being used by this EthernetUDP instance */
+void EthernetRAW::stop()
+{
+	if (sockindex < MAX_SOCK_NUM) {
+		Ethernet.socketClose(sockindex);
+		sockindex = MAX_SOCK_NUM;
+	}
 }

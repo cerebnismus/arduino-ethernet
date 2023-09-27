@@ -163,15 +163,18 @@ extern EthernetClass Ethernet;
 class EthernetRAW {
 private:
 	uint16_t _port;
+
+protected:
+	uint8_t sockindex;
 public:
 	EthernetRAW(uint16_t port) : _port(port) { }
+	EthernetRAW() : sockindex(MAX_SOCK_NUM) {}  // Other Constructor
 	EthernetClient available();
 	virtual void begin();
 	virtual size_t write(uint8_t);
 	virtual size_t write(const uint8_t *buf, size_t size);
 	virtual operator bool();
-	// using Print::write;
-	//void statusreport();
+	virtual void stop();  // Finish with the RAW socket
 
 	// TODO: make private when socket allocation moves to EthernetClass
 	static uint16_t server_port[MAX_SOCK_NUM];

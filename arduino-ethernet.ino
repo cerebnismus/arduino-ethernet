@@ -3,11 +3,6 @@
   AUTH: <oguzhan.ince@protonmail.com>
   DATE: 04/09/2023
   DESC: arduino ile ağ yönetimi
-  
-  The project is based on the Arduino Ethernet library and the W5100Interface. 
-  Library is a mbed library that implements the EthernetInterface for the
-  Wiznet W5100 based Ethernet shield. The Wiznet W5100 chip supports up to
-  four simultaneous socket connections. And never supports more than 4 sockets.
 
 Derleme Aşaması;
   (base) macintosh ~ » arduino-cli compile  \
@@ -22,16 +17,17 @@ Derleme Aşaması;
   --verbose  \
   --clean \
   /Users/macbook/Documents/arduino-ethernet/arduino-ethernet.ino
-
 */
 
 #include <SPI.h>
 #include <SoftwareSerial.h>
 #include <Ethernet.h>
 #include <EthernetUdp.h>
+#include <utility/w5100.h>
 // #include "/Users/macbook/Documents/arduino-ethernet/libs/Ethernet/src/Ethernet.h"
 // #include "/Users/macbook/Documents/arduino-ethernet/libs/Ethernet/src/EthernetUdp.h"
 
+// calculate checksum for the IP header and ICMP header (if applicable) (RFC 1071)
 uint16_t calculateChecksum(const byte* data, size_t length) {
   uint32_t sum = 0;
   uint16_t* ptr = (uint16_t*)data;
@@ -46,32 +42,37 @@ uint16_t calculateChecksum(const byte* data, size_t length) {
 }
 
 // MAC addresses must be unique on the LAN and can be assigned by the user or generated here randomly.
-byte destinationMAC[] = { 0xAC, 0xBC, 0x32, 0x9B, 0x28, 0x67 }; // Replace with your Router's MAC address
-byte sourceMAC[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };      // Replace with your Arduino's MAC address
+byte destinationMAC[] = {0xAC, 0xBC, 0x32, 0x9B, 0x28, 0x67}; // Replace with your Router's MAC address
+byte sourceMAC[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};      // Replace with your Arduino's MAC address
 
 // IP addresses are dependent on your local network.
-// IPAddress destinationIP(8, 8, 8, 8);  // Replace with the IP address of your destination node
-IPAddress destinationIP(192, 168, 8, 106);  // Replace with the IP address of your destination node
-IPAddress sourceIP(192, 168, 8, 129);       // Replace with your Arduino's IP address
+IPAddress destinationIP(10, 28, 28, 9);  // Replace with the IP address of your destination node
+IPAddress sourceIP(10, 28, 28, 22);       // Replace with your Arduino's IP address
+
+IPAddress targetIP(10, 28, 28, 9); // Target IP address for ARP request
+IPAddress broadcastIP(10, 28, 28, 255); // Broadcast IP address
 
 unsigned int sequenceNumber = 0;
 unsigned int ethernetInitVal = 0;
 
-// Workaround solution
+// This is a workaround solution to the issue of the Ethernet library not having a proper raw socket implementation.
 EthernetRAW raw(0);
+EthernetUDP udp;
+unsigned int localPort = 1; // Local port to listen on
 
 void setup() {
 
   Ethernet.begin(sourceMAC, sourceIP);
   Serial.begin(9600);
 
+  Serial.print("IP address: ");
+  Serial.println(Ethernet.localIP());
+  Serial.println("Waiting command: a: sendArpRequestz, p: echoRequestReply");
+
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
   }
 
-  delay(1000); // Wait a second before continuing
-  Serial.println("connected");
-  delay(1000); // Wait a second before continuing
 }
 
 
@@ -79,30 +80,31 @@ void loop() {
 
   // give the Ethernet shield a second to initialize:
   delay(1000);
-  Serial.println("connecting...");
-  delay(1000);
 
-  echoRequestReply();
-  delay(1000); // Wait a second before continuing
-
-/*
   if (Serial.available()) {
     char input = Serial.read();
+    if (input == 'a') {
+      delay(1000);
+      Serial.println("sendArpRequestz sending");
+      sendArpRequestz(targetIP);
+      Serial.println("sendArpRequestz sended");
+      delay(1000);
+    }
     if (input == 'p') {
-      sendPingRequest();
-      delay(1000); // Wait
+      delay(1000);
+      Serial.println("echoRequestReply sending");
+      echoRequestReply();
+      Serial.println("echoRequestReply sended");
+      delay(1000);
     }
   }
-*/
-
 }
 
 
 void echoRequestReply() {
 
-  byte packetBuffer[48];      // Create an Ethernet packet buffer - send
-
   // ETHERNET HEADER
+  byte packetBuffer[48];      // Create an Ethernet packet buffer - send
   memcpy(packetBuffer, destinationMAC, 6);  // Destination MAC address
   memcpy(packetBuffer + 6, sourceMAC, 6);   // Source MAC address
   packetBuffer[12] = 0x08; // EtherType: IPv4 (0x0800) (0b00001000) (8) (IP packet)
@@ -156,26 +158,109 @@ void echoRequestReply() {
   packetBuffer[37] = icmpChecksum & 0xFF; // Checksum (low byte)
 
 
-  // Open a socket
-  // Returns 1 if successful, 0 if there are no sockets available to use
-  // if you get a connection, report back via serial:
-  // raw.begin();
-  Serial.println("begining");
-  raw.begin();
 
-  
-  
-  raw.write(packetBuffer, strlen(packetBuffer));
-  Serial.println("ICMP Echo Request packet sent.\n");
-  exit(0);
+  uint16_t _offset = 0;
+  uint8_t sockindex = Ethernet.socketBegin(SnMR::IPRAW, 2);
+  SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+  W5100.writeSnDIPR(sockindex, broadcastIP); // sockindex and targetIP
+  W5100.writeSnDPORT(sockindex, 9); // sockindex and port
+  SPI.endTransaction();
+  uint16_t bytes_written = Ethernet.socketBufferData(sockindex, _offset, packetBuffer, 48);
+  _offset += bytes_written;
 
-  // TODO: Parse the response at the IP and ICMP levels
-  // TODO: Print the response details
+  SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+  W5100.execCmdSn(sockindex, Sock_SEND);
 
+  while ( (W5100.readSnIR(sockindex) & SnIR::SEND_OK) != SnIR::SEND_OK ) {
+    if (W5100.readSnIR(sockindex) & SnIR::TIMEOUT) {
+      W5100.writeSnIR(sockindex, (SnIR::SEND_OK|SnIR::TIMEOUT));
+      SPI.endTransaction();
+      Serial.println("icmp timeout\n");
+    }
+    SPI.endTransaction();
+    yield();
+    SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+  }
+
+  W5100.writeSnIR(sockindex, SnIR::SEND_OK);
+  SPI.endTransaction();
+
+  SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+  W5100.execCmdSn(sockindex, Sock_CLOSE);
+  SPI.endTransaction();
+  Serial.println("ICMP Echo Request packet sent.");
+
+  // exit(0);
   sequenceNumber++; // Increment the sequence number for the next packet
-  delay(1000); // Wait 1 second before sending the next packet
-
+  delay(1000); // Wait 3 second before sending the next packet
   // Ethernet.socketDisconnect(client);
-  // Serial.println("Socket closed.\n");
+}
 
+
+
+
+void sendArpRequestz(IPAddress targetIP) {
+
+  Serial.println("sendArpRequestz started");
+  byte arpPacket[42]; // ARP packet size is 42 bytes
+  delay(1000);
+  // Ethernet header
+  memset(arpPacket, 0xFF, 6); // Destination MAC: Broadcast
+  memcpy(arpPacket + 6, sourceMAC, 6); // Source MAC: Our MAC address
+  arpPacket[12] = 0x08; // Ethertype: ARP
+  arpPacket[13] = 0x06;
+  Serial.println("sendArpRequestz ethernet header ok");
+  delay(1000);
+  // ARP header
+  arpPacket[14] = 0x00; // Hardware type: Ethernet
+  arpPacket[15] = 0x01;
+  arpPacket[16] = 0x08; // Protocol type: ARP
+  arpPacket[17] = 0x00;
+  arpPacket[18] = 0x06; // Hardware address length // Ethernet address length is 6.
+  arpPacket[19] = 0x04; // Protocol address length // IPv4 address length is 4
+  arpPacket[20] = 0x00; // Opcode: Request
+  arpPacket[21] = 0x01; // 1 for request, 2 for reply.
+  Serial.println("sendArpRequestz arp header ok");
+  delay(1000);
+  // ARP data
+  memcpy(arpPacket + 22, sourceMAC, 6); // Sender MAC
+  memcpy(arpPacket + 28, sourceIP.operator[](0), 4); // Sender IP
+  memset(arpPacket + 32, 0x00, 6); // Target MAC: 0x00 (unknown)
+  memcpy(arpPacket + 38, targetIP.operator[](0), 4); // Target IP
+  Serial.println("sendArpRequestz arp data ok");
+  delay(1000);
+
+
+  // Send ARP packet
+  // socket beginPacket MACRAW 0
+  uint16_t _offset = 0;
+  uint8_t sockindex = Ethernet.socketBegin(SnMR::MACRAW, 2);
+  SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+  W5100.writeSnDIPR(sockindex, broadcastIP); // sockindex and targetIP
+  W5100.writeSnDPORT(sockindex, 9); // sockindex and port
+  SPI.endTransaction();
+  uint16_t bytes_written = Ethernet.socketBufferData(sockindex, _offset, arpPacket, 42);
+  _offset += bytes_written;
+
+  SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+  W5100.execCmdSn(sockindex, Sock_SEND);
+
+  while ( (W5100.readSnIR(sockindex) & SnIR::SEND_OK) != SnIR::SEND_OK ) {
+    if (W5100.readSnIR(sockindex) & SnIR::TIMEOUT) {
+      W5100.writeSnIR(sockindex, (SnIR::SEND_OK|SnIR::TIMEOUT));
+      SPI.endTransaction();
+      Serial.println("ARP timeout\n");
+    }
+    SPI.endTransaction();
+    yield();
+    SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+  }
+
+  W5100.writeSnIR(sockindex, SnIR::SEND_OK);
+  SPI.endTransaction();
+
+  SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+  W5100.execCmdSn(sockindex, Sock_CLOSE);
+  SPI.endTransaction();
+  Serial.println("ARP requestz sent");
 }
