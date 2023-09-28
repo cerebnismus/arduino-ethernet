@@ -1,3 +1,23 @@
+<img width="1012" alt="image" src="https://github.com/oguzhan-ince/arduino-ethernet/assets/11842029/3cc8ddc4-c6f9-4905-b1e3-0483c9ff07bc">
+
+<img width="1012" alt="image" src="https://github.com/oguzhan-ince/arduino-ethernet/assets/11842029/14de2280-6f39-4f7b-b521-c35b319dd5d9">
+
+### Compile and Run
+```bash
+$ arduino-cli compile  \
+  --fqbn arduino:avr:uno  \
+  --port /dev/cu.usbserial-1410  \
+  --libraries /Users/macbook/Documents/arduino-ethernet/libs/  \
+  --build-cache-path /Users/macbook/Documents/arduino-ethernet/build-cache/   \
+  --export-binaries --warnings all  \
+  --output-dir /Users/macbook/Documents/arduino-ethernet/bin/   \
+  --upload  \
+  --verify  \
+  --verbose  \
+  --clean \
+  /Users/macbook/Documents/arduino-ethernet/arduino-ethernet.ino
+```
+
 ### arduino-ethernet ile ağ yönetimi
 Arduino Uno, açık kaynaklı bir mikrodenetleyici kartıdır ve Atmel ATmega328P mikrodenetleyiciyi temel alır. 14 dijital giriş/çıkış pini, 6 analog giriş pini, bir 16 MHz kuartz kristali, bir USB bağlantısı, bir güç jakı ve bir ICSP başlığına sahiptir. Programlama için genellikle Arduino IDE kullanılır, bu sayede C ve C++ dillerinde yazılmış kodlar yüklenir. Arduino Uno, sensörlerden aldığı verileri işleyebilir, motorları kontrol edebilir ve diğer elektronik bileşenleri yönetebilir. Genellikle prototipleme, küçük ölçekli projeler ve eğitim amaçlı kullanılır. Ethernet kartı, bir bilgisayarın veya mikrodenetleyicinin bir Ethernet ağına bağlanmasını sağlar. Bu kartlar genellikle RJ-45 konnektörüne sahiptir ve 10/100/1000 Mbps hızlarını destekler. Arduino için üretilmiş Ethernet kartları (shield), SPI (Serial Peripheral Interface) üzerinden Arduino ile iletişim kurar. Bu sayede, Arduino'nun internete bağlanmasını ve örneğin HTTP istekleri göndermesini veya bir web sunucusu olarak çalışmasını sağlar. Ethernet kartları, IoT projelerinde, uzaktan cihaz kontrolünde ve veri toplama uygulamalarında sıklıkla kullanılır.
 
@@ -24,19 +44,3 @@ ARP protokolü, ARP spoofing veya ARP poisoning gibi saldırılara karşı savun
 Internet Control Message Protocol (ICMP), IP protokolü ile birlikte çalışan bir yardımcı protokoldür ve temel olarak hata mesajları ve ağ teşhis işlemleri için kullanılır. ICMP, örneğin "ping" ve "traceroute" gibi ağ teşhis araçlarının temelini oluşturur. Ping, bir ICMP Echo Request mesajı gönderir ve karşılığında bir Echo Reply mesajı bekler. Bu, iki cihaz arasındaki iletişimin sağlıklı olup olmadığını kontrol etmek için kullanılır. Traceroute ise, bir paketin hedefe ulaşana kadar geçtiği yolları ve gecikmeleri göstermek için ICMP mesajlarını kullanır. ICMP, ayrıca ağdaki hatalar ve kesintiler hakkında bilgi sağlar; örneğin, bir hedefe ulaşılamadığında "Destination Unreachable" mesajı gönderilir.
 
 ICMP protokolü de güvenlik açısından bazı zayıf yönler taşır. Örneğin, ICMP flood saldırıları, bir hedefin aşırı sayıda ICMP Echo Request paketi almasına neden olarak servis dışı bırakılmasına yol açabilir. Ayrıca, ICMP'nin hata mesajları saldırganlar tarafından ağın topolojisi hakkında bilgi toplamak için kullanılabilir. ICMP Redirect saldırıları da, ağ trafiğini yanlış yönlendirmek için kullanılabilir. Bu tür saldırılar, ağın güvenliğini tehlikeye atabilir ve hassas verilerin sızmasına neden olabilir. ICMP için, ağ cihazlarının yapılandırmasında belirli ICMP mesaj türlerinin engellenmesi veya sınırlanması mümkündür. Örneğin, ICMP Echo Request mesajlarını sadece güvendiğiniz IP adreslerinden kabul etmek gibi. Ayrıca, ağ izleme araçları kullanılarak anormal ICMP trafiği tespit edilebilir. Bu, olası bir saldırıyı erken bir aşamada belirlemeye yardımcı olabilir. Güvenlik duvarları ve IDS (Intrusion Detection Systems) sistemleri, ICMP trafiğini izlemek ve filtrelemek için de kullanılabilir.
-
-### Compile and Run
-```bash
-$ arduino-cli compile  \
-  --fqbn arduino:avr:uno  \
-  --port /dev/cu.usbserial-1410  \
-  --libraries /Users/macbook/Documents/arduino-ethernet/libs/  \
-  --build-cache-path /Users/macbook/Documents/arduino-ethernet/build-cache/   \
-  --export-binaries --warnings all  \
-  --output-dir /Users/macbook/Documents/arduino-ethernet/bin/   \
-  --upload  \
-  --verify  \
-  --verbose  \
-  --clean \
-  /Users/macbook/Documents/arduino-ethernet/arduino-ethernet.ino
-```
