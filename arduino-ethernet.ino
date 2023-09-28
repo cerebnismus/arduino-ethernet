@@ -12,28 +12,28 @@
 #include <utility/w5100.h>
 
 
-// calculate checksum for the IP header and ICMP header (if applicable) (RFC 1071)
-uint16_t calculateChecksum(const byte* data, size_t length) {
-  uint32_t sum = 0;
-  uint16_t* ptr = (uint16_t*)data;
-  while (length > 1) {
-    sum += *ptr++;
-    length -= 2;
+// Function to calculate checksum (byte-swapped) (Big Endian)
+uint16_t icmpChecksum(uint8_t *data, uint16_t length) {
+  uint32_t sum = 0; // Sum up 16-bit words
+  for (int i = 0; i < length; i += 2) {
+    uint16_t word = (data[i] << 8) + data[i + 1];
+    sum += word;
   }
-  if (length == 1) {sum += *(uint8_t*)ptr;}
-  sum = (sum >> 16) + (sum & 0xFFFF);
-  sum += (sum >> 16);
-  return ~sum;
+  while (sum >> 16) {  // Add carry bits
+    sum = (sum & 0xFFFF) + (sum >> 16);
+  }
+  uint16_t checksum = ~sum; // One's complement
+  checksum = (checksum >> 8) | (checksum << 8); // Swap bytes
+  return checksum;
 }
 
-
 // MAC addresses must be unique on the LAN and can be assigned by the user or generated here randomly.
-byte destinationMAC[] = {0xAC, 0xBC, 0x32, 0x9B, 0x28, 0x67}; // Replace with your Router's MAC address
+byte destinationMAC[] = {0x00, 0x1C, 0xA8, 0xDE, 0xAD, 0x05}; // Replace with your Router's MAC address
 byte sourceMAC[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};      // Replace with your Arduino's MAC address
 
 // IP addresses are dependent on your local network.
 IPAddress destinationIP(10, 28, 28, 9);   // IP address of your destination node
-IPAddress wanDestinationIP(8, 8, 8, 8);       // Arduino's IP address
+IPAddress wanDestinationIP(8, 8, 8, 8);   // Arduino's IP address
 IPAddress sourceIP(10, 28, 28, 22);       // Arduino's IP address
 IPAddress broadcastIP(10, 28, 28, 255);   // Broadcast IP address
 
@@ -47,7 +47,15 @@ void setup() {
   Serial.println(Ethernet.localIP());
   delay(1000);
 
-  optionMenu();
+  Serial.println("  Options  ");
+  Serial.println(" --------- ");
+  Serial.println("  a : ARP request   ");
+  Serial.println("  b : ARP broadcast ");
+  Serial.println("  l : LAN ping      ");
+  Serial.println("  w : WAN ping      ");
+  Serial.println("  t : traceroute    ");
+  Serial.println("  p : portscan      ");
+  Serial.println("  q : quit          ");
 
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
@@ -61,14 +69,28 @@ void loop() {
     if (input == 'a') {
       delay(1000);
       sendArpRequestz(destinationIP); // Send ARP request for lan IP
-    //sendArpRequestz(wanDestinationIP); // Send ARP request for wan IP
-    //sendArpRequestz(broadcastIP); // Send ARP announcement
+    }
+    else if (input == 'b') {
+      delay(1000);
+      sendArpRequestz(broadcastIP); // Send ARP announcement
+    }
+    else if (input == 'l') {
+      delay(1000);
+      sendEchoRequestz(destinationIP);     // Send ICMP echo request to lan IP
+    }
+    else if (input == 'w') {
+      delay(1000);
+      sendEchoRequestz(wanDestinationIP);  // Send ICMP echo request to wan IP
+    }
+    else if (input == 't') {
+      delay(1000);
+      sendTraceRequestz(wanDestinationIP);
+      // TODO
     }
     else if (input == 'p') {
       delay(1000);
-    //sendEchoRequestz(destinationIP);     // Send ICMP echo request to lan IP
-      sendEchoRequestz(wanDestinationIP);  // Send ICMP echo request to wan IP
-    //sendEchoRequestz(broadcastIP);       // ?
+      // Serial.println("portscan");
+      // TODO
     }
     else if (input == 'q') {
       delay(1000);
@@ -77,26 +99,14 @@ void loop() {
     }
     else {
       Serial.println("Invalid option");
-      optionMenu();
     }
   }
-}
-
-// option function
-void optionMenu() {
-  Serial.println("  Options  ");
-  Serial.println(" --------- ");
-  Serial.println("  a : ping ARP   ");
-  Serial.println("  p : ping ICMP  ");
-  Serial.println("  t : traceroute ");
-  Serial.println("  s : portscan   ");
-  Serial.println("  q : quit       ");
 }
 
 
 void sendEchoRequestz(IPAddress destinationIP_echo) {
   Serial.println("sendEchoRequestz started");
-  byte echoPacket[48]; // ICMP packet size is 48 bytes
+  byte echoPacket[42]; // ICMP packet size is 42 bytes
   delay(1000);
   // Ethernet header
   memcpy(echoPacket, destinationMAC, 6);  // Destination MAC address
@@ -108,10 +118,10 @@ void sendEchoRequestz(IPAddress destinationIP_echo) {
   // IP header
   echoPacket[14] = 0x45; // Version (4), IHL (5)              +
   echoPacket[15] = 0x00; // Type of Service (0) (DSCP + ECN)  +
-  echoPacket[16] = 0x00; // Total Length (48)                 +
-  echoPacket[17] = 0x30; //                                   +
-  echoPacket[18] = 0x00; // Identification (placeholder)      +
-  echoPacket[19] = 0x00; //                                   +
+  echoPacket[16] = 0x00; // Total Length (46)                 +
+  echoPacket[17] = 0x2E; //                                   +
+  echoPacket[18] = 0x01; // Identification (placeholder)      +
+  echoPacket[19] = 0x01; //                                   +
   echoPacket[20] = 0x00; // Flags                             +
   echoPacket[21] = 0x00; // Fragment Offset                   +
   echoPacket[22] = 0x40; // TTL (64)                          +
@@ -120,36 +130,26 @@ void sendEchoRequestz(IPAddress destinationIP_echo) {
   echoPacket[24] = 0x00; // Header Checksum (placeholder)     +
   echoPacket[25] = 0x00; // Header Checksum (placeholder)     +
   memcpy(echoPacket + 26, (uint8_t *)&sourceIP+2, 4); //      +
-  memcpy(echoPacket + 30, (uint8_t *)&destinationIP_echo+2, 4); // +
-  Serial.println("sendEchoRequestz ip header ok");
-  // ICMP HEADER
+  memcpy(echoPacket + 30, (uint8_t *)&destinationIP_echo+2, 4);
   echoPacket[34] = 0x08; // Type: 8 (0x08) Echo Request       +
   echoPacket[35] = 0x00; // Code: 0 (0x00)                    +
-  echoPacket[36] = 0x00; // Checksum (placeholder)            +
-  echoPacket[37] = 0x00; // Checksum (placeholder)            +
-  echoPacket[38] = 0x00; // Identifier (placeholder)          -
-  echoPacket[39] = 0x00; // Identifier (placeholder)          -
-  echoPacket[40] = 0x00; // Sequence Number (placeholder)     -
-  echoPacket[41] = 0x00; // Sequence Number (placeholder)     -
-  Serial.println("sendEchoRequestz icmp header ok");
+  echoPacket[36] = 0x00; // Checksum (X)            +
+  echoPacket[37] = 0x00; // Checksum (X)            +
+  echoPacket[38] = 0x01; // Identification (placeholder)      +
+  echoPacket[39] = 0x01; //                                   +
+  echoPacket[40] = 0x00; // Sequence Number (placeholder)     +
+  echoPacket[41] = 0x00; //                                   +
 
-  // ICMP data (optional)
-  echoPacket[42] = 0x41; // A
-  echoPacket[43] = 0x6C; // l
-  echoPacket[44] = 0x6F; // o
-  echoPacket[45] = 0x68; // h
-  echoPacket[46] = 0x61; // a
-  echoPacket[47] = 0x21; // !
+  // IP header checksum
+  uint16_t checksum_ip = icmpChecksum(echoPacket + 14, 20);
+  echoPacket[24] = checksum_ip & 0xFF; // Checksum (low byte)
+  echoPacket[25] = checksum_ip >> 8;   // Checksum (high byte)
+  delay(1000);
 
-  // Calculate IP header checksum
-  uint16_t ipChecksum = calculateChecksum(echoPacket + 14, 20);
-  echoPacket[24] = ipChecksum >> 8;   // Header Checksum (high byte)
-  echoPacket[25] = ipChecksum & 0xFF; // Header Checksum (low byte)
-
-  // Calculate ICMP header checksum
-  uint16_t icmpChecksum = calculateChecksum(echoPacket + 34, 8);
-  echoPacket[36] = icmpChecksum >> 8;   // Checksum (high byte)
-  echoPacket[37] = icmpChecksum & 0xFF; // Checksum (low byte)
+  // ICMP header checksum (calculate with payload)
+  uint16_t checksum_icmp = icmpChecksum(echoPacket + 34, 8);
+  echoPacket[36] = checksum_icmp & 0xFF; // Checksum (low byte)
+  echoPacket[37] = checksum_icmp >> 8;   // Checksum (high byte)
 
   // Send ICMP packet
   uint16_t _offset = 0;
@@ -159,7 +159,7 @@ void sendEchoRequestz(IPAddress destinationIP_echo) {
   W5100.writeSnDIPR(sockindex, destinationIP_echo); // sockindex and destinationIP_echo
   W5100.writeSnDPORT(sockindex, 7); // sockindex and port
   SPI.endTransaction();
-  uint16_t bytes_written = Ethernet.socketBufferData(sockindex, _offset, echoPacket, 48);
+  uint16_t bytes_written = Ethernet.socketBufferData(sockindex, _offset, echoPacket, 42);
   _offset += bytes_written;
 
   SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
@@ -177,11 +177,43 @@ void sendEchoRequestz(IPAddress destinationIP_echo) {
   }
   W5100.writeSnIR(sockindex, SnIR::SEND_OK);
   SPI.endTransaction();
+  // Serial.println("ICMP Echo Request packet sent.");
 
-  SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+  // Read packet
+  while ( (W5100.readSnIR(sockindex) & SnIR::RECV) != SnIR::RECV ) {
+    if (W5100.readSnIR(sockindex) & SnIR::TIMEOUT) {
+      W5100.writeSnIR(sockindex, SnIR::RECV);
+      SPI.endTransaction();
+      Serial.println("ICMP Echo Request timeout.\n");
+    }
+    SPI.endTransaction();
+    yield();
+    SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+  }
+  W5100.writeSnIR(sockindex, SnIR::RECV);
+
+  // Read packet size
+  uint16_t dataSize = W5100.readSnRX_RSR(sockindex);
+  if (dataSize > 0) {
+    uint8_t buffer[dataSize];
+
+    // W5100.readSn(sockindex, (uint8_t *)&destinationIP_echo+2, buffer, dataSize);
+    Ethernet.socketRecv(sockindex, buffer, dataSize);
+    printPacket(buffer, dataSize);
+  }
+  delay(1000);
+
+  // Close socket
   W5100.execCmdSn(sockindex, Sock_CLOSE);
   SPI.endTransaction();
-  Serial.println("ICMP Echo Request packet sent.");
+}
+
+
+void printPacket(uint8_t *buffer, uint16_t size) {
+  for (uint16_t i = 0; i < size; ++i) {
+    Serial.print(i, DEC);
+    Serial.println(buffer[i], HEX);
+  }
 }
 
 
@@ -264,89 +296,145 @@ void sendArpRequestz(IPAddress destinationIP_arp) {
   delay(1000);
 }
 
-/*
-ARP Request:
-Frame 5147: 60 bytes on wire (480 bits), 60 bytes captured (480 bits) on interface en0, id 0
-    Section number: 1
-    Interface id: 0 (en0)
-    Encapsulation type: Ethernet (1)
-    Arrival Time: Sep 28, 2023 03:02:32.528096000 +03
-    [Time shift for this packet: 0.000000000 seconds]
-    Epoch Time: 1695859352.528096000 seconds
-    [Time delta from previous captured frame: 1.478242000 seconds]
-    [Time delta from previous displayed frame: 20.989089000 seconds]
-    [Time since reference or first frame: 258.845140000 seconds]
-    Frame Number: 5147
-    Frame Length: 60 bytes (480 bits)
-    Capture Length: 60 bytes (480 bits)
-    [Frame is marked: False]
-    [Frame is ignored: False]
-    File Offset: 2553296 (0x26f5d0)
-    [Protocols in frame: eth:ethertype:arp]
-    [Coloring Rule Name: ARP]
-    [Coloring Rule String: arp]
-Ethernet II, Src: de:ad:be:ef:fe:ed (de:ad:be:ef:fe:ed), Dst: Broadcast (ff:ff:ff:ff:ff:ff)
-    Destination: Broadcast (ff:ff:ff:ff:ff:ff)
-        Address: Broadcast (ff:ff:ff:ff:ff:ff)
-        .... ..1. .... .... .... .... = LG bit: Locally administered address (this is NOT the factory default)
-        .... ...1 .... .... .... .... = IG bit: Group address (multicast/broadcast)
-    Source: de:ad:be:ef:fe:ed (de:ad:be:ef:fe:ed)
-        Address: de:ad:be:ef:fe:ed (de:ad:be:ef:fe:ed)
-        .... ..1. .... .... .... .... = LG bit: Locally administered address (this is NOT the factory default)
-        .... ...0 .... .... .... .... = IG bit: Individual address (unicast)
-    Type: ARP (0x0806)
-    Padding: 000000000000000000000000000000000000
-Address Resolution Protocol (request)
-    Hardware type: Ethernet (1)
-    Protocol type: IPv4 (0x0800)
-    Hardware size: 6
-    Protocol size: 4
-    Opcode: request (1)
-    Sender MAC address: de:ad:be:ef:fe:ed (de:ad:be:ef:fe:ed)
-    Sender IP address: 10.28.28.22 (10.28.28.22)
-    Target MAC address: 00:00:00_00:00:00 (00:00:00:00:00:00)
-    Target IP address: macintosh.local (10.28.28.9)
 
 
+void sendTraceRequestz(IPAddress destinationIP_echo) {
+  Serial.println();
+  Serial.print("traceroute to (");
+  Serial.print(destinationIP_echo);
+  Serial.print("), 30 hops max, 42 byte packets");
+  Serial.println();
+  delay(1000);
+  // loop for traceroute ttl value
+  for (int i = 1; i < 30; i++) {
+    delay(100);
+    byte echoPacket[42]; // ICMP packet size is 42 bytes
+    memcpy(echoPacket, destinationMAC, 6);  // Destination MAC address
+    memcpy(echoPacket + 6, sourceMAC, 6);   // Source MAC address
+    echoPacket[12] = 0x08; // EtherType: IPv4
+    echoPacket[13] = 0x00;
+    delay(100);
+    // IP header
+    echoPacket[14] = 0x45; // Version (4), IHL (5)              +
+    echoPacket[15] = 0x00; // Type of Service (0) (DSCP + ECN)  +
+    echoPacket[16] = 0x00; // Total Length (46)                 +
+    echoPacket[17] = 0x2E; //                                   +
+    echoPacket[18] = 0x01; // Identification (placeholder)      +
+    echoPacket[19] = 0x01; //                                   +
+    echoPacket[20] = 0x00; // Flags                             +
+    echoPacket[21] = 0x00; // Fragment Offset                   +
+    echoPacket[22] = i;    // TTL (MAX HOP 30)                  +
+    echoPacket[23] = 0x01; // Protocol: ICMP (1) (0x01)         +
+  //echoPacket[23] = 0xFF; // Protocol: RAW (255) (0xFF)        +
+    echoPacket[24] = 0x00; // Header Checksum (placeholder)     +
+    echoPacket[25] = 0x00; // Header Checksum (placeholder)     +
+    memcpy(echoPacket + 26, (uint8_t *)&sourceIP+2, 4); //      +
+    memcpy(echoPacket + 30, (uint8_t *)&destinationIP_echo+2, 4);
+    echoPacket[34] = 0x08; // Type: 8 (0x08) Echo Request       +
+    echoPacket[35] = 0x00; // Code: 0 (0x00)                    +
+    echoPacket[36] = 0x00; // Checksum (X)            +
+    echoPacket[37] = 0x00; // Checksum (X)            +
+    echoPacket[38] = 0x01; // Identification (placeholder)      +
+    echoPacket[39] = 0x01; //                                   +
+    echoPacket[40] = 0x00; // Sequence Number (placeholder)     +
+    echoPacket[41] = 0x00; //                                   +
 
-ARP Reply:
-Frame 5148: 42 bytes on wire (336 bits), 42 bytes captured (336 bits) on interface en0, id 0
-    Section number: 1
-    Interface id: 0 (en0)
-    Encapsulation type: Ethernet (1)
-    Arrival Time: Sep 28, 2023 03:02:32.528186000 +03
-    [Time shift for this packet: 0.000000000 seconds]
-    Epoch Time: 1695859352.528186000 seconds
-    [Time delta from previous captured frame: 0.000090000 seconds]
-    [Time delta from previous displayed frame: 0.000090000 seconds]
-    [Time since reference or first frame: 258.845230000 seconds]
-    Frame Number: 5148
-    Frame Length: 42 bytes (336 bits)
-    Capture Length: 42 bytes (336 bits)
-    [Frame is marked: False]
-    [Frame is ignored: False]
-    File Offset: 2553388 (0x26f62c)
-    [Protocols in frame: eth:ethertype:arp]
-    [Coloring Rule Name: ARP]
-    [Coloring Rule String: arp]
-Ethernet II, Src: macintosh.local (ac:bc:32:9b:28:67), Dst: de:ad:be:ef:fe:ed (de:ad:be:ef:fe:ed)
-    Destination: de:ad:be:ef:fe:ed (de:ad:be:ef:fe:ed)
-        Address: de:ad:be:ef:fe:ed (de:ad:be:ef:fe:ed)
-        .... ..1. .... .... .... .... = LG bit: Locally administered address (this is NOT the factory default)
-        .... ...0 .... .... .... .... = IG bit: Individual address (unicast)
-    Source: macintosh.local (ac:bc:32:9b:28:67)
-        Address: macintosh.local (ac:bc:32:9b:28:67)
-        .... ..0. .... .... .... .... = LG bit: Globally unique address (factory default)
-        .... ...0 .... .... .... .... = IG bit: Individual address (unicast)
-    Type: ARP (0x0806)
-Address Resolution Protocol (reply)
-    Hardware type: Ethernet (1)
-    Protocol type: IPv4 (0x0800)
-    Hardware size: 6
-    Protocol size: 4
-    Opcode: reply (2)
-    Sender MAC address: macintosh.local (ac:bc:32:9b:28:67)
-    Sender IP address: macintosh.local (10.28.28.9)
-    Target MAC address: de:ad:be:ef:fe:ed (de:ad:be:ef:fe:ed)
-    Target IP address: 10.28.28.22 (10.28.28.22)
-*/
+    // IP header checksum
+    uint16_t checksum_ip = icmpChecksum(echoPacket + 14, 20);
+    echoPacket[24] = checksum_ip & 0xFF; // Checksum (low byte)
+    echoPacket[25] = checksum_ip >> 8;   // Checksum (high byte)
+    delay(100);
+
+    // ICMP header checksum (calculate with payload)
+    uint16_t checksum_icmp = icmpChecksum(echoPacket + 34, 8);
+    echoPacket[36] = checksum_icmp & 0xFF; // Checksum (low byte)
+    echoPacket[37] = checksum_icmp >> 8;   // Checksum (high byte)
+
+    // Send ICMP packet
+    uint16_t _offset = 0;
+    uint8_t sockindex = Ethernet.socketBegin(SnMR::MACRAW, 2);
+
+    SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+    W5100.writeSnDIPR(sockindex, destinationIP_echo); // sockindex and destinationIP_echo
+    W5100.writeSnDPORT(sockindex, 7); // sockindex and port
+    SPI.endTransaction();
+    uint16_t bytes_written = Ethernet.socketBufferData(sockindex, _offset, echoPacket, 42);
+    _offset += bytes_written;
+
+    SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+    W5100.execCmdSn(sockindex, Sock_SEND);
+
+    while ( (W5100.readSnIR(sockindex) & SnIR::SEND_OK) != SnIR::SEND_OK ) {
+      if (W5100.readSnIR(sockindex) & SnIR::TIMEOUT) {
+        W5100.writeSnIR(sockindex, (SnIR::SEND_OK|SnIR::TIMEOUT));
+        SPI.endTransaction();
+        // Serial.println("ICMP Echo Request timeout.\n");
+      }
+      SPI.endTransaction();
+      yield();
+      SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+    }
+    W5100.writeSnIR(sockindex, SnIR::SEND_OK);
+    SPI.endTransaction();
+    // Serial.println("ICMP Echo Request packet sent.");
+
+    // Read packet
+    while ( (W5100.readSnIR(sockindex) & SnIR::RECV) != SnIR::RECV ) {
+      if (W5100.readSnIR(sockindex) & SnIR::TIMEOUT) {
+        W5100.writeSnIR(sockindex, SnIR::RECV);
+        SPI.endTransaction();
+        // Serial.println("ICMP Echo Request timeout.\n");
+      }
+      SPI.endTransaction();
+      yield();
+      SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+    }
+    W5100.writeSnIR(sockindex, SnIR::RECV);
+
+    // Read packet size
+    uint16_t dataSize = W5100.readSnRX_RSR(sockindex);
+    if (dataSize > 0) {
+      uint8_t buffer[dataSize];
+      delay(100);
+
+      // W5100.readSn(sockindex, (uint8_t *)&destinationIP_echo+2, buffer, dataSize);
+      Ethernet.socketRecv(sockindex, buffer, dataSize);
+      // printPacket(buffer, dataSize);
+
+      // buffer[36] = 11 and buffer[37] = 0 or buffer[36] = 0 and buffer[37] = 0
+      if (buffer[36] == 11 && buffer[37] == 0 || buffer[36] == 0 && buffer[37] == 0) {
+        delay(100);
+        Serial.print(i, DEC);
+        Serial.print(" ");
+        delay(100);
+        Serial.print(" Type/Code: ");
+        Serial.print(buffer[36], DEC);
+        Serial.print("/");
+        Serial.print(buffer[37], DEC);
+        Serial.print(" ");
+        Serial.print(buffer[28], DEC);
+        Serial.print(".");
+        Serial.print(buffer[29], DEC);
+        Serial.print(".");
+        Serial.print(buffer[30], DEC);
+        Serial.print(".");
+        Serial.print(buffer[31], DEC);
+        Serial.println();
+        delay(100);
+        if (buffer[28] == destinationIP_echo[0] && buffer[29] == destinationIP_echo[1] && buffer[30] == destinationIP_echo[2] && buffer[31] == destinationIP_echo[3]) {
+          delay(100);
+          Serial.println("traceroute completed");
+          delay(1000);
+          W5100.execCmdSn(sockindex, Sock_CLOSE);
+          SPI.endTransaction();
+          exit(0);
+        }
+      }
+    }
+    delay(100);
+
+    // Close socket
+    W5100.execCmdSn(sockindex, Sock_CLOSE);
+    SPI.endTransaction();
+  }
+}
