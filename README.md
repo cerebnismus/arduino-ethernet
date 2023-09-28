@@ -1,7 +1,5 @@
 <img width="1012" alt="image" src="https://github.com/oguzhan-ince/arduino-ethernet/assets/11842029/3cc8ddc4-c6f9-4905-b1e3-0483c9ff07bc">
 
-<img width="1012" alt="image" src="https://github.com/oguzhan-ince/arduino-ethernet/assets/11842029/14de2280-6f39-4f7b-b521-c35b319dd5d9">
-
 ### Compile and Run
 ```bash
 $ arduino-cli compile  \
