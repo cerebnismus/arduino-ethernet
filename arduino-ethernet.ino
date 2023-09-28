@@ -26,6 +26,7 @@ uint16_t calculateChecksum(const byte* data, size_t length) {
   return ~sum;
 }
 
+
 // MAC addresses must be unique on the LAN and can be assigned by the user or generated here randomly.
 byte destinationMAC[] = {0xAC, 0xBC, 0x32, 0x9B, 0x28, 0x67}; // Replace with your Router's MAC address
 byte sourceMAC[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};      // Replace with your Arduino's MAC address
@@ -35,13 +36,6 @@ IPAddress destinationIP(10, 28, 28, 9);   // IP address of your destination node
 IPAddress wanDestinationIP(8, 8, 8, 8);       // Arduino's IP address
 IPAddress sourceIP(10, 28, 28, 22);       // Arduino's IP address
 IPAddress broadcastIP(10, 28, 28, 255);   // Broadcast IP address
-
-unsigned int sequenceNumber = 0;
-unsigned int ethernetInitVal = 0;
-
-// This is a workaround solution to the issue of the Ethernet library not having a proper raw socket implementation.
-EthernetUDP udp;
-unsigned int localPort = 1; // Local port to listen on
 
 
 void setup() {
@@ -169,7 +163,6 @@ void sendEchoRequestz(IPAddress destinationIP_echo) {
   W5100.execCmdSn(sockindex, Sock_CLOSE);
   SPI.endTransaction();
   Serial.println("ICMP Echo Request packet sent.");
-  sequenceNumber++; // Increment the sequence number for the next packet
 }
 
 
