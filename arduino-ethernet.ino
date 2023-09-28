@@ -47,8 +47,7 @@ void setup() {
   Serial.println(Ethernet.localIP());
   delay(1000);
 
-  Serial.println("Waiting command: a: sendArpRequestz, p: echoRequestReply");
-  delay(1000);
+  optionMenu();
 
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
@@ -65,13 +64,33 @@ void loop() {
     //sendArpRequestz(wanDestinationIP); // Send ARP request for wan IP
     //sendArpRequestz(broadcastIP); // Send ARP announcement
     }
-    if (input == 'p') {
+    else if (input == 'p') {
       delay(1000);
     //sendEchoRequestz(destinationIP);     // Send ICMP echo request to lan IP
       sendEchoRequestz(wanDestinationIP);  // Send ICMP echo request to wan IP
     //sendEchoRequestz(broadcastIP);       // ?
     }
+    else if (input == 'q') {
+      delay(1000);
+      Serial.println("Quitting");
+      exit(0);
+    }
+    else {
+      Serial.println("Invalid option");
+      optionMenu();
+    }
   }
+}
+
+// option function
+void optionMenu() {
+  Serial.println("  Options  ");
+  Serial.println(" --------- ");
+  Serial.println("  a : ping ARP   ");
+  Serial.println("  p : ping ICMP  ");
+  Serial.println("  t : traceroute ");
+  Serial.println("  s : portscan   ");
+  Serial.println("  q : quit       ");
 }
 
 
